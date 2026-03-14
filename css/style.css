@@ -1,0 +1,339 @@
+/* ============================================================
+   F1 CAR // MECHANICAL BREAKOUT — Dark Engineering Blueprint
+   ============================================================ */
+
+/* --- Reset & base ------------------------------------------ */
+*, *::before, *::after {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  overflow: hidden;
+  background: #0A0E17;
+  font-family: 'SF Mono', 'Fira Code', 'Cascadia Code', 'Consolas', monospace;
+  color: #C8D6E5;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* --- Canvas ----------------------------------------------- */
+#three-canvas {
+  display: block;
+  width: 100vw;
+  height: 100vh;
+}
+
+/* --- CSS2D overlay container ------------------------------ */
+#css2d-container {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  overflow: hidden;
+}
+
+/* --- UI Overlay ------------------------------------------- */
+#ui-overlay {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 10;
+}
+
+/* let interactive elements receive pointer events */
+#ui-overlay button,
+#ui-overlay aside,
+#ui-overlay .action-btn {
+  pointer-events: auto;
+}
+
+/* --- Title bar -------------------------------------------- */
+#title-bar {
+  position: absolute;
+  top: 0;
+  left: 50%;
+  transform: translateX(-50%);
+  padding: 14px 32px;
+  background: rgba(10, 14, 23, 0.7);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  border-bottom: 1px solid rgba(74, 144, 217, 0.25);
+  border-radius: 0 0 6px 6px;
+  z-index: 20;
+}
+
+.title-text {
+  font-size: 14px;
+  font-weight: 700;
+  letter-spacing: 3px;
+  text-transform: uppercase;
+  color: #E0E8F0;
+}
+
+.title-sep {
+  color: #4A90D9;
+  margin: 0 2px;
+}
+
+/* --- Legend panel (left) ---------------------------------- */
+#legend-panel {
+  position: absolute;
+  top: 70px;
+  left: 16px;
+  width: 230px;
+  background: rgba(10, 14, 23, 0.82);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  border: 1px solid rgba(74, 144, 217, 0.18);
+  border-radius: 8px;
+  padding: 16px 0 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.panel-heading {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 2.5px;
+  color: #6B7D93;
+  padding: 0 16px 10px;
+  border-bottom: 1px solid rgba(74, 144, 217, 0.12);
+  margin-bottom: 4px;
+}
+
+.group-list {
+  list-style: none;
+  padding: 0 8px;
+}
+
+.group-list li {
+  margin-bottom: 2px;
+}
+
+/* Group button */
+.group-btn {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 8px 10px;
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 5px;
+  cursor: pointer;
+  font-family: inherit;
+  font-size: 12px;
+  color: #C8D6E5;
+  transition: background 0.2s, border-color 0.2s;
+}
+
+.group-btn:hover {
+  background: rgba(74, 144, 217, 0.08);
+  border-color: rgba(74, 144, 217, 0.25);
+}
+
+.group-btn.active {
+  background: rgba(74, 144, 217, 0.14);
+  border-color: rgba(74, 144, 217, 0.4);
+}
+
+.dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  flex-shrink: 0;
+  box-shadow: 0 0 6px rgba(255, 255, 255, 0.12);
+}
+
+.group-label {
+  flex: 1;
+  text-align: left;
+}
+
+.chevron {
+  font-size: 10px;
+  color: #4A5568;
+  transition: transform 0.25s, color 0.25s;
+}
+
+.group-btn.active .chevron {
+  transform: rotate(90deg);
+  color: #4A90D9;
+}
+
+/* Legend action buttons */
+.legend-actions {
+  display: flex;
+  gap: 8px;
+  padding: 10px 12px 4px;
+  margin-top: 4px;
+  border-top: 1px solid rgba(74, 144, 217, 0.12);
+}
+
+.action-btn {
+  flex: 1;
+  padding: 7px 0;
+  font-family: inherit;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 1.2px;
+  color: #C8D6E5;
+  background: rgba(74, 144, 217, 0.08);
+  border: 1px solid rgba(74, 144, 217, 0.25);
+  border-radius: 4px;
+  cursor: pointer;
+  transition: background 0.2s, border-color 0.2s, color 0.2s;
+}
+
+.action-btn:hover {
+  background: rgba(74, 144, 217, 0.2);
+  border-color: rgba(74, 144, 217, 0.5);
+  color: #FFFFFF;
+}
+
+/* --- Detail panel (right) --------------------------------- */
+#detail-panel {
+  position: absolute;
+  top: 70px;
+  right: 16px;
+  width: 280px;
+  background: rgba(10, 14, 23, 0.88);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid rgba(74, 144, 217, 0.18);
+  border-radius: 8px;
+  padding: 20px;
+  transform: translateX(0);
+  transition: transform 0.35s ease, opacity 0.35s ease;
+  opacity: 1;
+}
+
+#detail-panel.hidden {
+  transform: translateX(320px);
+  opacity: 0;
+  pointer-events: none;
+}
+
+.detail-close-btn {
+  position: absolute;
+  top: 10px;
+  right: 12px;
+  background: none;
+  border: none;
+  color: #6B7D93;
+  font-size: 20px;
+  cursor: pointer;
+  line-height: 1;
+  transition: color 0.2s;
+}
+
+.detail-close-btn:hover {
+  color: #E0E8F0;
+}
+
+.detail-system {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+
+.detail-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #4A90D9;
+}
+
+.detail-system-label {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 2px;
+  text-transform: uppercase;
+  color: #6B7D93;
+}
+
+.detail-title {
+  font-size: 16px;
+  font-weight: 700;
+  color: #E0E8F0;
+  margin-bottom: 10px;
+  line-height: 1.3;
+}
+
+.detail-desc {
+  font-size: 12px;
+  line-height: 1.65;
+  color: #8899AA;
+}
+
+/* --- Tooltip (for CSS2D labels) --------------------------- */
+.tooltip-label {
+  padding: 4px 10px;
+  background: rgba(10, 14, 23, 0.9);
+  border: 1px solid rgba(74, 144, 217, 0.3);
+  border-radius: 4px;
+  color: #C8D6E5;
+  font-family: 'SF Mono', 'Fira Code', 'Consolas', monospace;
+  font-size: 11px;
+  white-space: nowrap;
+  pointer-events: none;
+  user-select: none;
+}
+
+/* --- Responsive ------------------------------------------- */
+@media (max-width: 900px) {
+  #legend-panel {
+    top: auto;
+    bottom: 0;
+    left: 0;
+    width: 100%;
+    border-radius: 12px 12px 0 0;
+    max-height: 45vh;
+    overflow-y: auto;
+    flex-direction: column;
+  }
+
+  #detail-panel {
+    top: auto;
+    bottom: 0;
+    right: 0;
+    width: 100%;
+    border-radius: 12px 12px 0 0;
+  }
+
+  #detail-panel.hidden {
+    transform: translateY(100%);
+  }
+
+  #title-bar {
+    padding: 10px 20px;
+  }
+
+  .title-text {
+    font-size: 11px;
+    letter-spacing: 2px;
+  }
+}
+
+@media (max-width: 480px) {
+  #legend-panel {
+    width: 100%;
+    left: 0;
+    padding: 12px 0 8px;
+  }
+
+  .group-btn {
+    font-size: 11px;
+    padding: 7px 8px;
+  }
+
+  #detail-panel {
+    width: 100%;
+  }
+}
