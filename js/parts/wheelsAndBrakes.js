@@ -48,6 +48,8 @@ function buildTire(cornerKey) {
   const tubeR = width / 2;
 
   const geo = new THREE.TorusGeometry(radius, tubeR, 24, 48);
+  // Bake rotation into geometry so assembledRotation doesn't override it
+  geo.rotateY(Math.PI / 2);
   const mesh = new THREE.Mesh(geo, mat({
     color: '#1A1A1A',
     metalness: 0.05,
@@ -55,7 +57,6 @@ function buildTire(cornerKey) {
     clearcoat: 0.05,
     opacity: 0.9,
   }));
-  mesh.rotation.y = Math.PI / 2;
   mesh.castShadow = true;
   mesh.receiveShadow = true;
   addEdgeLines(mesh, '#333333');
@@ -93,13 +94,14 @@ function buildRim(cornerKey) {
   ];
 
   const geo = new THREE.LatheGeometry(profile, 32);
+  // Bake rotation into geometry so assembledRotation doesn't override it
+  geo.rotateX(Math.PI / 2);
   const mesh = new THREE.Mesh(geo, mat({
     color: '#CCCCCC',
     metalness: 0.85,
     roughness: 0.15,
     clearcoat: 0.5,
   }));
-  mesh.rotation.x = Math.PI / 2;
   mesh.castShadow = true;
   mesh.receiveShadow = true;
   addEdgeLines(mesh, '#888888');
@@ -117,12 +119,12 @@ function buildBrake(cornerKey) {
   // Brake disc
   const discR = tireR * 0.6;
   const discGeo = new THREE.CylinderGeometry(discR, discR, 0.025, 36);
+  discGeo.rotateX(Math.PI / 2);
   const disc = new THREE.Mesh(discGeo, mat({
     color: '#888888',
     metalness: 0.75,
     roughness: 0.3,
   }));
-  disc.rotation.x = Math.PI / 2;
   disc.castShadow = true;
   disc.receiveShadow = true;
   addEdgeLines(disc);
@@ -136,13 +138,13 @@ function buildBrake(cornerKey) {
     const hx = Math.cos(angle) * discR * 0.65;
     const hy = Math.sin(angle) * discR * 0.65;
     const holeGeo = new THREE.CylinderGeometry(holeR, holeR, 0.03, 6);
+    holeGeo.rotateX(Math.PI / 2);
     const hole = new THREE.Mesh(holeGeo, mat({
       color: '#333333',
       metalness: 0.5,
       opacity: 0.6,
     }));
     hole.position.set(hx, hy, 0);
-    hole.rotation.x = Math.PI / 2;
     group.add(hole);
   }
 

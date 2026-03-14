@@ -88,13 +88,8 @@ function buildRod(side, isPushrod) {
   bearing2.castShadow = true;
   group.add(bearing2);
 
-  if (isPushrod) {
-    group.rotation.z = side * 0.5;
-    group.rotation.x = 0.2;
-  } else {
-    group.rotation.z = side * -0.4;
-    group.rotation.x = -0.15;
-  }
+  // Don't set rotation on the group — it gets overridden by assembledRotation.
+  // The rotation is specified in each part's assembledRotation instead.
 
   return group;
 }
@@ -219,7 +214,7 @@ export const suspensionParts = [
     group: GROUP,
     description: 'Left front pushrod connecting the lower wishbone to the inboard torsion bar and damper.',
     assembledPosition: [-0.45, 0.3, -1.5],
-    assembledRotation: [0, 0, 0],
+    assembledRotation: [0.2, 0, -0.5],
     explosionDirection: [-0.5, 0.7, -0.3],
     build() {
       return buildRod(-1, true);
@@ -233,7 +228,7 @@ export const suspensionParts = [
     group: GROUP,
     description: 'Right front pushrod connecting the lower wishbone to the inboard torsion bar and damper.',
     assembledPosition: [0.45, 0.3, -1.5],
-    assembledRotation: [0, 0, 0],
+    assembledRotation: [0.2, 0, 0.5],
     explosionDirection: [0.5, 0.7, -0.3],
     build() {
       return buildRod(1, true);
@@ -247,7 +242,7 @@ export const suspensionParts = [
     group: GROUP,
     description: 'Left rear pullrod — lower-mounted linkage for compact rear suspension packaging.',
     assembledPosition: [-0.45, 0.22, 2.1],
-    assembledRotation: [0, 0, 0],
+    assembledRotation: [-0.15, 0, 0.4],
     explosionDirection: [-0.5, -0.5, 0.5],
     build() {
       return buildRod(-1, false);
@@ -261,7 +256,7 @@ export const suspensionParts = [
     group: GROUP,
     description: 'Right rear pullrod — lower-mounted linkage for compact rear suspension packaging.',
     assembledPosition: [0.45, 0.22, 2.1],
-    assembledRotation: [0, 0, 0],
+    assembledRotation: [-0.15, 0, -0.4],
     explosionDirection: [0.5, -0.5, 0.5],
     build() {
       return buildRod(1, false);
