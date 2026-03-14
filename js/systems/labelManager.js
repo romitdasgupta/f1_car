@@ -5,7 +5,6 @@
 import * as THREE from 'three';
 import { CSS2DObject } from 'three/addons/renderers/CSS2DRenderer.js';
 import { COLORS } from '../data/colors.js';
-import { CONFIG } from '../data/config.js';
 
 // ---- Internal storage -------------------------------------
 
@@ -190,7 +189,12 @@ function updateLabels(camera) {
   }
 
   // ---- Simple overlap avoidance ----
-  // If two labels are close in screen space, nudge Y
+  // Reset label Y positions to their default offset, then nudge if overlapping
+  for (const sp of screenPositions) {
+    const defaultY = 0.3 + (sp.entry.partDef.id.length % 5) * 0.05;
+    sp.entry.label.position.y = defaultY;
+  }
+
   for (let i = 0; i < screenPositions.length; i++) {
     for (let j = i + 1; j < screenPositions.length; j++) {
       const a = screenPositions[i];
@@ -204,8 +208,7 @@ function updateLabels(camera) {
 
       // If labels are very close in screen space, nudge them apart in world space
       if (screenDist < 0.06) {
-        const nudge = 0.12;
-        b.entry.label.position.y += nudge;
+        b.entry.label.position.y += 0.15;
       }
     }
   }

@@ -15,6 +15,8 @@ let pointer;
 let interactiveMeshes = [];       // flat list of { partDef, mesh }
 let meshToPartDef = new Map();    // mesh → partDef (for quick lookup)
 let hoveredMesh = null;
+let cachedRaycastTargets = null; // cached for performance
+let pointerDownPos = null; // for drag detection
 
 // Bound handler references (for cleanup in dispose)
 const boundHandlers = {};
@@ -38,11 +40,13 @@ function init(_scene, _camera, _renderer, _controls) {
 
   // Bind event listeners
   boundHandlers.onPointerMove = onPointerMove.bind(null);
+  boundHandlers.onPointerDown = onPointerDown.bind(null);
   boundHandlers.onClick = onClick.bind(null);
   boundHandlers.onGroupExploded = onGroupExploded.bind(null);
   boundHandlers.onGroupAssembled = onGroupAssembled.bind(null);
 
   renderer.domElement.addEventListener('pointermove', boundHandlers.onPointerMove);
+  renderer.domElement.addEventListener('pointerdown', boundHandlers.onPointerDown);
   renderer.domElement.addEventListener('click', boundHandlers.onClick);
   document.addEventListener('group-exploded', boundHandlers.onGroupExploded);
   document.addEventListener('group-assembled', boundHandlers.onGroupAssembled);
@@ -63,13 +67,12 @@ function init(_scene, _camera, _renderer, _controls) {
 function registerMeshes(meshes) {
   interactiveMeshes = meshes;
   meshToPartDef.clear();
+  cachedRaycastTargets = null; // invalidate cache
 
   for (const { partDef, mesh } of meshes) {
-    // Tag the root mesh/group
     mesh.userData.partDef = partDef;
     mesh.userData.isInteractive = true;
 
-    // Also tag every descendant mesh so raycaster hits resolve
     mesh.traverse((child) => {
       if (child.isMesh) {
         meshToPartDef.set(child, partDef);
@@ -85,14 +88,16 @@ function registerMeshes(meshes) {
  * for the raycaster to test against.
  */
 function getAllRaycastTargets() {
+  if (cachedRaycastTargets) return cachedRaycastTargets;
   const targets = [];
   for (const { mesh } of interactiveMeshes) {
     mesh.traverse((child) => {
-      if (child.isMesh && child.name !== 'edgeLines') {
+      if (child.isMesh) {
         targets.push(child);
       }
     });
   }
+  cachedRaycastTargets = targets;
   return targets;
 }
 
@@ -188,8 +193,18 @@ function onPointerMove(event) {
   }
 }
 
+function onPointerDown(event) {
+  pointerDownPos = { x: event.clientX, y: event.clientY };
+}
+
 function onClick(event) {
   // Ignore drag-style clicks (user was orbiting)
+  if (pointerDownPos) {
+    const dx = event.clientX - pointerDownPos.x;
+    const dy = event.clientY - pointerDownPos.y;
+    if (Math.sqrt(dx * dx + dy * dy) > 5) return;
+  }
+
   raycaster.setFromCamera(pointer, camera);
   const targets = getAllRaycastTargets();
   const intersects = raycaster.intersectObjects(targets, false);
@@ -222,11 +237,8 @@ function setupLegendButtons() {
     btn.addEventListener('click', () => {
       const groupName = btn.getAttribute('data-group');
       if (!groupName) return;
-
+      // Don't toggle CSS class here — let custom events drive it
       explosionManager.toggleGroup(groupName);
-
-      // Toggle active state — if currently active remove it, else add
-      btn.classList.toggle('active');
     });
   });
 }
@@ -238,20 +250,12 @@ function setupActionButtons() {
   if (explodeBtn) {
     explodeBtn.addEventListener('click', () => {
       explosionManager.explodeAll();
-      // Activate all legend buttons
-      document.querySelectorAll('.group-btn').forEach((btn) => {
-        btn.classList.add('active');
-      });
     });
   }
 
   if (resetBtn) {
     resetBtn.addEventListener('click', () => {
       explosionManager.resetAll();
-      // Deactivate all legend buttons
-      document.querySelectorAll('.group-btn').forEach((btn) => {
-        btn.classList.remove('active');
-      });
     });
   }
 }
@@ -295,6 +299,11 @@ function setupDetailPanel() {
 
 function onGroupExploded(e) {
   const { groupName } = e.detail;
+
+  // Sync legend button active state
+  const btn = document.querySelector(`.group-btn[data-group="${groupName}"]`);
+  if (btn) btn.classList.add('active');
+
   if (!controls || !camera) return;
 
   const parts = explosionManager.getGroupParts(groupName);
@@ -365,6 +374,7 @@ function onGroupAssembled(e) {
 function dispose() {
   if (renderer && renderer.domElement) {
     renderer.domElement.removeEventListener('pointermove', boundHandlers.onPointerMove);
+    renderer.domElement.removeEventListener('pointerdown', boundHandlers.onPointerDown);
     renderer.domElement.removeEventListener('click', boundHandlers.onClick);
   }
   document.removeEventListener('group-exploded', boundHandlers.onGroupExploded);
