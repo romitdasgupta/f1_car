@@ -38,30 +38,145 @@ const REAR_TIRE_R  = 0.33;
 const FRONT_TIRE_W = 0.305;
 const REAR_TIRE_W  = 0.38;
 
+// All wheel components use rotateZ(PI/2) to align revolution/cylinder axis Y → X (wheel axle)
+const AXLE_ROTATION = Math.PI / 2;
+
+// ---- Sidewall branding texture (shared, created once) ------
+
+let _brandingTexture = null;
+function getSidewallTexture() {
+  if (_brandingTexture) return _brandingTexture;
+
+  const canvas = document.createElement('canvas');
+  canvas.width = 2048;
+  canvas.height = 256;
+  const ctx = canvas.getContext('2d');
+
+  // Black rubber background
+  ctx.fillStyle = '#1a1a1a';
+  ctx.fillRect(0, 0, 2048, 256);
+
+  // Compound color stripe at top and bottom edges
+  ctx.fillStyle = '#FFCC00';
+  ctx.fillRect(0, 0, 2048, 12);
+  ctx.fillRect(0, 244, 2048, 12);
+
+  // Branding text repeated around the circumference (4 segments)
+  const segments = 4;
+  const segW = 2048 / segments;
+  for (let i = 0; i < segments; i++) {
+    const cx = segW * (i + 0.5);
+    if (i % 2 === 0) {
+      ctx.fillStyle = '#FFFFFF';
+      ctx.font = 'bold 68px Arial, Helvetica, sans-serif';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText('P I R E L L I', cx, 128);
+    } else {
+      ctx.fillStyle = '#FFCC00';
+      ctx.font = 'bold 52px Arial, Helvetica, sans-serif';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText('P ZERO', cx, 110);
+      // Small compound label
+      ctx.fillStyle = '#FFFFFF';
+      ctx.font = '28px Arial, Helvetica, sans-serif';
+      ctx.fillText('SOFT', cx, 160);
+    }
+  }
+
+  _brandingTexture = new THREE.CanvasTexture(canvas);
+  _brandingTexture.wrapS = THREE.RepeatWrapping;
+  _brandingTexture.wrapT = THREE.ClampToEdgeWrapping;
+  return _brandingTexture;
+}
+
+// ---- Tire builder ------------------------------------------
+
 /**
- * Builds a tire (torus) for the given corner.
+ * Builds a tire with realistic cross-section, compound bands, and sidewall branding.
  */
 function buildTire(cornerKey) {
   const isRear = cornerKey.startsWith('R');
-  const radius = isRear ? REAR_TIRE_R : FRONT_TIRE_R;
+  const outerR = isRear ? REAR_TIRE_R : FRONT_TIRE_R;
   const width = isRear ? REAR_TIRE_W : FRONT_TIRE_W;
-  const tubeR = width / 2;
+  const halfW = width / 2;
+  // Inner radius (bead) — 18" low-profile, short sidewall
+  const innerR = outerR * 0.63;
 
-  const geo = new THREE.TorusGeometry(radius, tubeR, 24, 48);
-  // Bake rotation into geometry so assembledRotation doesn't override it
-  geo.rotateY(Math.PI / 2);
-  const mesh = new THREE.Mesh(geo, mat({
+  const group = new THREE.Group();
+
+  // === Main tire body (LatheGeometry with proper cross-section) ===
+  // Low-profile 18" F1 tire: wide flat tread, short near-vertical sidewalls
+  const profile = [
+    // Bead (inner edge, slightly narrower than tread)
+    new THREE.Vector2(innerR, -halfW * 0.88),
+    new THREE.Vector2(innerR + 0.005, -halfW * 0.85),
+    // Short sidewall — nearly vertical
+    new THREE.Vector2(innerR + (outerR - innerR) * 0.15, -halfW * 0.82),
+    new THREE.Vector2(innerR + (outerR - innerR) * 0.50, -halfW * 0.74),
+    new THREE.Vector2(innerR + (outerR - innerR) * 0.80, -halfW * 0.62),
+    new THREE.Vector2(outerR * 0.97, -halfW * 0.52),
+    // Shoulder — sharp transition to tread
+    new THREE.Vector2(outerR, -halfW * 0.44),
+    new THREE.Vector2(outerR + 0.001, -halfW * 0.38),
+    // Wide flat tread (~76% of width)
+    new THREE.Vector2(outerR + 0.002, -halfW * 0.25),
+    new THREE.Vector2(outerR + 0.003, 0),
+    new THREE.Vector2(outerR + 0.002, halfW * 0.25),
+    // Shoulder (mirror)
+    new THREE.Vector2(outerR + 0.001, halfW * 0.38),
+    new THREE.Vector2(outerR, halfW * 0.44),
+    // Sidewall (mirror)
+    new THREE.Vector2(outerR * 0.97, halfW * 0.52),
+    new THREE.Vector2(innerR + (outerR - innerR) * 0.80, halfW * 0.62),
+    new THREE.Vector2(innerR + (outerR - innerR) * 0.50, halfW * 0.74),
+    new THREE.Vector2(innerR + (outerR - innerR) * 0.15, halfW * 0.82),
+    // Bead (mirror)
+    new THREE.Vector2(innerR + 0.005, halfW * 0.85),
+    new THREE.Vector2(innerR, halfW * 0.88),
+  ];
+
+  const tireGeo = new THREE.LatheGeometry(profile, 48);
+  tireGeo.rotateZ(AXLE_ROTATION);
+
+  const tireMesh = new THREE.Mesh(tireGeo, mat({
     color: '#1A1A1A',
     metalness: 0.05,
-    roughness: 0.9,
+    roughness: 0.85,
     clearcoat: 0.05,
-    opacity: 0.9,
+    opacity: 0.95,
   }));
-  mesh.castShadow = true;
-  mesh.receiveShadow = true;
-  addEdgeLines(mesh, '#333333');
-  return mesh;
+  tireMesh.castShadow = true;
+  tireMesh.receiveShadow = true;
+  addEdgeLines(tireMesh, '#333333');
+  group.add(tireMesh);
+
+  // === Sidewall branding (canvas texture on RingGeometry) ===
+  const brandInner = innerR + (outerR - innerR) * 0.08;
+  const brandOuter = innerR + (outerR - innerR) * 0.65;
+
+  for (const side of [-1, 1]) {
+    const ringGeo = new THREE.RingGeometry(brandInner, brandOuter, 64, 1);
+    // Face the ring along the X axis (perpendicular to axle)
+    ringGeo.rotateY(side * Math.PI / 2);
+
+    const brandMat = new THREE.MeshBasicMaterial({
+      map: getSidewallTexture(),
+      transparent: true,
+      side: THREE.FrontSide,
+      depthWrite: false,
+      opacity: 0.85,
+    });
+    const brandMesh = new THREE.Mesh(ringGeo, brandMat);
+    brandMesh.position.x = side * halfW * 0.52;
+    group.add(brandMesh);
+  }
+
+  return group;
 }
+
+// ---- Rim builder -------------------------------------------
 
 /**
  * Builds a rim (lathe geometry) for the given corner.
@@ -94,8 +209,8 @@ function buildRim(cornerKey) {
   ];
 
   const geo = new THREE.LatheGeometry(profile, 32);
-  // Bake rotation into geometry so assembledRotation doesn't override it
-  geo.rotateX(Math.PI / 2);
+  // Align with tire: revolution axis Y → X
+  geo.rotateZ(AXLE_ROTATION);
   const mesh = new THREE.Mesh(geo, mat({
     color: '#CCCCCC',
     metalness: 0.85,
@@ -108,6 +223,8 @@ function buildRim(cornerKey) {
   return mesh;
 }
 
+// ---- Brake builder -----------------------------------------
+
 /**
  * Builds a brake assembly (disc + caliper) for the given corner.
  */
@@ -116,10 +233,10 @@ function buildBrake(cornerKey) {
   const tireR = isRear ? REAR_TIRE_R : FRONT_TIRE_R;
   const group = new THREE.Group();
 
-  // Brake disc
+  // Brake disc — cylinder axis aligned with wheel axle (X)
   const discR = tireR * 0.6;
   const discGeo = new THREE.CylinderGeometry(discR, discR, 0.025, 36);
-  discGeo.rotateX(Math.PI / 2);
+  discGeo.rotateZ(AXLE_ROTATION);
   const disc = new THREE.Mesh(discGeo, mat({
     color: '#888888',
     metalness: 0.75,
@@ -130,29 +247,29 @@ function buildBrake(cornerKey) {
   addEdgeLines(disc);
   group.add(disc);
 
-  // Ventilation holes in disc
+  // Ventilation holes — arranged in YZ plane (disc face)
   const holeCount = 12;
   const holeR = 0.008;
   for (let i = 0; i < holeCount; i++) {
     const angle = (i / holeCount) * Math.PI * 2;
-    const hx = Math.cos(angle) * discR * 0.65;
-    const hy = Math.sin(angle) * discR * 0.65;
+    const hy = Math.cos(angle) * discR * 0.65;
+    const hz = Math.sin(angle) * discR * 0.65;
     const holeGeo = new THREE.CylinderGeometry(holeR, holeR, 0.03, 6);
-    holeGeo.rotateX(Math.PI / 2);
+    holeGeo.rotateZ(AXLE_ROTATION);
     const hole = new THREE.Mesh(holeGeo, mat({
       color: '#333333',
       metalness: 0.5,
       opacity: 0.6,
     }));
-    hole.position.set(hx, hy, 0);
+    hole.position.set(0, hy, hz);
     group.add(hole);
   }
 
-  // Brake caliper
+  // Brake caliper — sits at top of disc
   const caliperW = discR * 0.35;
   const caliperH = discR * 0.25;
   const caliperD = 0.06;
-  const caliperGeo = new THREE.BoxGeometry(caliperW, caliperH, caliperD);
+  const caliperGeo = new THREE.BoxGeometry(caliperD, caliperH, caliperW);
   const caliper = new THREE.Mesh(caliperGeo, mat({
     color: COLOR,
     metalness: 0.4,

@@ -7,6 +7,7 @@ export const COLORS = {
   grid: '#1A2332',
   edge: '#4A90D9',
   groups: {
+    bodywork:       '#C0C8D0',
     powerUnit:      '#E63946',
     drivetrain:     '#E76F51',
     chassis:        '#F4A261',

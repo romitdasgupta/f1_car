@@ -259,6 +259,7 @@ function toggleGroup(groupName) {
 // ---- Explode all ------------------------------------------
 
 const CASCADE_ORDER = [
+  'bodywork',
   'aerodynamics',
   'suspension',
   'wheelsAndBrakes',
@@ -274,15 +275,21 @@ const CASCADE_ORDER = [
  */
 async function explodeAll() {
   const delay = CONFIG.animation.cascadeDelay;
+  const promises = [];
 
   for (let i = 0; i < CASCADE_ORDER.length; i++) {
     const groupName = CASCADE_ORDER[i];
     if (groups.has(groupName)) {
-      // Fire each group with a cascade delay — don't await each one;
-      // instead, delay the start and let them overlap
-      setTimeout(() => explodeGroup(groupName), i * delay);
+      const p = new Promise((resolve) => {
+        setTimeout(() => {
+          explodeGroup(groupName).then(resolve);
+        }, i * delay);
+      });
+      promises.push(p);
     }
   }
+
+  return Promise.all(promises);
 }
 
 // ---- Reset all --------------------------------------------

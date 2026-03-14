@@ -1,7 +1,7 @@
 // ============================================================
 //  Aerodynamic parts — wings, endplates, sidepods, beam wing
 //  Color: #2A9D8F (teal)
-//  SOLID, THICK geometry — chunky and dramatic
+//  HIGH-POLY vertex-deformed geometry for sculpted F1 shapes
 // ============================================================
 
 import * as THREE from 'three';
@@ -23,12 +23,17 @@ function mat(opts = {}) {
   });
 }
 
+function smoothstep(edge0, edge1, x) {
+  const t = Math.max(0, Math.min(1, (x - edge0) / (edge1 - edge0)));
+  return t * t * (3 - 2 * t);
+}
+
+function lerp(a, b, t) {
+  return a + (b - a) * t;
+}
+
 /**
  * Helper: builds an extruded wing element from an airfoil shape.
- * @param {number} chord     — airfoil chord length
- * @param {number} span      — extrude width (wing span)
- * @param {number} thickness — airfoil thickness ratio
- * @param {number} camber    — airfoil camber ratio
  */
 function buildWingElement(chord, span, thickness = 0.12, camber = 0.04) {
   const shape = createAirfoilShape(chord, thickness, camber);
@@ -44,6 +49,146 @@ function buildWingElement(chord, span, thickness = 0.12, camber = 0.04) {
   return geo;
 }
 
+/**
+ * Build a sculpted sidepod with dramatic undercut/coke-bottle shape.
+ * Returns a THREE.Group.
+ */
+function buildSidepod({ addEdgeLines }) {
+  const group = new THREE.Group();
+
+  const spW = 0.32, spH = 0.34, spL = 1.6;
+  const spGeo = new THREE.BoxGeometry(spW, spH, spL, 6, 6, 16);
+  const spos = spGeo.attributes.position;
+  const halfW = spW / 2;
+  const halfH = spH / 2;
+  const halfL = spL / 2;
+
+  for (let i = 0; i < spos.count; i++) {
+    let x = spos.getX(i);
+    let y = spos.getY(i);
+    let z = spos.getZ(i);
+
+    const xNorm = x / halfW;
+    const yNorm = y / halfH;
+    const zNorm = z / halfL; // -1 (front) to +1 (rear)
+
+    // --- Inlet scoop at front face ---
+    // Push upper-front vertices inward to create a concave scoop
+    if (zNorm < -0.6) {
+      const frontT = smoothstep(-0.6, -1.0, zNorm);
+      // Upper part scoops inward more
+      if (yNorm > 0.0) {
+        const scoopDepth = frontT * yNorm * 0.10;
+        x *= (1.0 - scoopDepth * 2.0);
+      }
+      // Slightly narrow the front overall
+      const frontNarrow = lerp(1.0, 0.82, frontT);
+      x *= frontNarrow;
+    }
+
+    // --- Dramatic undercut / coke-bottle taper ---
+    // The lower half tapers inward dramatically from z=0 rearward
+    if (zNorm > -0.1) {
+      const rearT = smoothstep(-0.1, 1.0, zNorm); // 0..1 from z~0 to rear
+
+      // Top stays wider, bottom narrows dramatically
+      // At max rear (zNorm=1): bottom is ~0.10 wide, top is still ~0.18
+      if (yNorm < 0) {
+        // Lower half: aggressive undercut
+        const undercut = lerp(1.0, 0.20, Math.pow(rearT, 0.9));
+        x *= undercut;
+        // Also pull lower vertices up to create the concave undercut shape
+        const liftAmount = rearT * Math.abs(yNorm) * 0.08;
+        y += liftAmount;
+      } else {
+        // Upper half: moderate taper (follows engine cover shape)
+        const topTaper = lerp(1.0, 0.40, Math.pow(rearT, 1.1));
+        x *= topTaper;
+      }
+
+      // Overall rear narrowing
+      const overallRearTaper = lerp(1.0, 0.55, rearT);
+      x *= overallRearTaper;
+
+      // Height reduces toward rear
+      y *= lerp(1.0, 0.70, rearT * 0.5);
+    }
+
+    // --- Smooth top surface flow ---
+    if (yNorm > 0.6) {
+      // Dome the top gently
+      const topT = (yNorm - 0.6) / 0.4;
+      const domeInset = topT * 0.05;
+      x *= (1.0 - domeInset);
+      // Slight dome rise
+      y += (1.0 - Math.abs(xNorm)) * 0.008;
+    }
+
+    // --- Round all corners using sin/cos ---
+    const absXn = Math.abs(xNorm);
+    const absYn = Math.abs(yNorm);
+    const cornerR = 0.25;
+    if (absXn > (1.0 - cornerR) && absYn > (1.0 - cornerR)) {
+      const cx = 1.0 - cornerR;
+      const cy = 1.0 - cornerR;
+      const dx = absXn - cx;
+      const dy = absYn - cy;
+      const dist = Math.sqrt(dx * dx + dy * dy);
+      if (dist > cornerR) {
+        const s = cornerR / dist;
+        const correctedX = (cx + dx * s) / absXn;
+        const correctedY = (cy + dy * s) / absYn;
+        x *= Math.min(correctedX, 1.0);
+        y *= Math.min(correctedY, 1.0);
+      }
+    }
+
+    spos.setX(i, x);
+    spos.setY(i, y);
+    spos.setZ(i, z);
+  }
+  spos.needsUpdate = true;
+  spGeo.computeVertexNormals();
+
+  const spBody = new THREE.Mesh(spGeo, mat());
+  spBody.castShadow = true;
+  spBody.receiveShadow = true;
+  addEdgeLines(spBody);
+  group.add(spBody);
+
+  // Dark inlet mesh at the front face
+  const inletShape = new THREE.Shape();
+  // Rounded rectangle inlet
+  const iw = spW * 0.55, ih = spH * 0.55;
+  const ir = 0.02;
+  inletShape.moveTo(-iw / 2 + ir, -ih / 2);
+  inletShape.lineTo(iw / 2 - ir, -ih / 2);
+  inletShape.quadraticCurveTo(iw / 2, -ih / 2, iw / 2, -ih / 2 + ir);
+  inletShape.lineTo(iw / 2, ih / 2 - ir);
+  inletShape.quadraticCurveTo(iw / 2, ih / 2, iw / 2 - ir, ih / 2);
+  inletShape.lineTo(-iw / 2 + ir, ih / 2);
+  inletShape.quadraticCurveTo(-iw / 2, ih / 2, -iw / 2, ih / 2 - ir);
+  inletShape.lineTo(-iw / 2, -ih / 2 + ir);
+  inletShape.quadraticCurveTo(-iw / 2, -ih / 2, -iw / 2 + ir, -ih / 2);
+
+  const inletGeo = new THREE.ExtrudeGeometry(inletShape, {
+    depth: 0.05,
+    bevelEnabled: false,
+  });
+  inletGeo.center();
+  const inletMesh = new THREE.Mesh(inletGeo, mat({
+    color: '#1a1a1a',
+    opacity: 0.95,
+    metalness: 0.05,
+    roughness: 0.8,
+  }));
+  inletMesh.position.set(0, 0.02, -spL / 2 - 0.01);
+  inletMesh.rotation.x = 0;
+  group.add(inletMesh);
+
+  return group;
+}
+
 export const aerodynamicsParts = [
   // ---- Front Wing Main Plane --------------------------------
   {
@@ -57,7 +202,7 @@ export const aerodynamicsParts = [
     build({ addEdgeLines }) {
       const group = new THREE.Group();
 
-      // WIDE main plane — 1.85 span, thick airfoil
+      // Wide main plane — 1.85 span, thick airfoil
       const geo = buildWingElement(0.28, 1.85, 0.15, 0.07);
       const mesh = new THREE.Mesh(geo, mat());
       mesh.castShadow = true;
@@ -65,17 +210,17 @@ export const aerodynamicsParts = [
       addEdgeLines(mesh);
       group.add(mesh);
 
-      // Nose-wing pylons connecting wing to nose tip area
+      // Nose-wing pylons
       const pylonH = 0.10;
-      const pylonGeoL = new THREE.BoxGeometry(0.03, pylonH, 0.12);
+      const pylonGeoL = new THREE.BoxGeometry(0.025, pylonH, 0.10);
       const pylonL = new THREE.Mesh(pylonGeoL, mat({ opacity: 0.94 }));
-      pylonL.position.set(-0.08, pylonH / 2 + 0.01, 0);
+      pylonL.position.set(-0.06, pylonH / 2 + 0.01, 0);
       pylonL.castShadow = true;
       group.add(pylonL);
 
-      const pylonGeoR = new THREE.BoxGeometry(0.03, pylonH, 0.12);
+      const pylonGeoR = new THREE.BoxGeometry(0.025, pylonH, 0.10);
       const pylonR = new THREE.Mesh(pylonGeoR, mat({ opacity: 0.94 }));
-      pylonR.position.set(0.08, pylonH / 2 + 0.01, 0);
+      pylonR.position.set(0.06, pylonH / 2 + 0.01, 0);
       pylonR.castShadow = true;
       group.add(pylonR);
 
@@ -95,7 +240,6 @@ export const aerodynamicsParts = [
     build({ addEdgeLines }) {
       const group = new THREE.Group();
 
-      // Thicker flap — more chord, more visual weight
       const geo = buildWingElement(0.18, 0.75, 0.13, 0.06);
       const mesh = new THREE.Mesh(geo, mat());
       mesh.castShadow = true;
@@ -128,7 +272,6 @@ export const aerodynamicsParts = [
     build({ addEdgeLines }) {
       const group = new THREE.Group();
 
-      // Mirror of left — thicker flaps
       const geo = buildWingElement(0.18, 0.75, 0.13, 0.06);
       const mesh = new THREE.Mesh(geo, mat());
       mesh.castShadow = true;
@@ -136,7 +279,6 @@ export const aerodynamicsParts = [
       addEdgeLines(mesh);
       group.add(mesh);
 
-      // Second flap element
       const geo2 = buildWingElement(0.12, 0.70, 0.11, 0.05);
       const mesh2 = new THREE.Mesh(geo2, mat({ opacity: 0.93 }));
       mesh2.position.set(0, 0.04, -0.02);
@@ -159,23 +301,23 @@ export const aerodynamicsParts = [
     assembledRotation: [0, 0, 0],
     explosionDirection: [-1, 0, -0.3],
     build({ addEdgeLines }) {
-      // TALL, SOLID vertical walls — 0.30 height, thick
+      // Modern curved endplate shape
       const shape = new THREE.Shape();
       shape.moveTo(0, 0);
       shape.lineTo(0.38, 0);
-      shape.lineTo(0.34, 0.08);
-      shape.lineTo(0.32, 0.26);
-      shape.quadraticCurveTo(0.28, 0.32, 0.18, 0.32);
-      shape.lineTo(0.06, 0.30);
-      shape.lineTo(0, 0.22);
+      shape.quadraticCurveTo(0.36, 0.05, 0.34, 0.10);
+      shape.lineTo(0.32, 0.24);
+      shape.quadraticCurveTo(0.28, 0.32, 0.18, 0.33);
+      shape.quadraticCurveTo(0.10, 0.33, 0.06, 0.30);
+      shape.quadraticCurveTo(0.02, 0.26, 0, 0.20);
       shape.closePath();
 
       const geo = new THREE.ExtrudeGeometry(shape, {
-        depth: 0.022,
+        depth: 0.020,
         bevelEnabled: true,
         bevelThickness: 0.003,
         bevelSize: 0.003,
-        bevelSegments: 2,
+        bevelSegments: 3,
       });
       geo.center();
       const mesh = new THREE.Mesh(geo, mat());
@@ -196,23 +338,22 @@ export const aerodynamicsParts = [
     assembledRotation: [0, Math.PI, 0],
     explosionDirection: [1, 0, -0.3],
     build({ addEdgeLines }) {
-      // Mirror of left — tall and thick
       const shape = new THREE.Shape();
       shape.moveTo(0, 0);
       shape.lineTo(0.38, 0);
-      shape.lineTo(0.34, 0.08);
-      shape.lineTo(0.32, 0.26);
-      shape.quadraticCurveTo(0.28, 0.32, 0.18, 0.32);
-      shape.lineTo(0.06, 0.30);
-      shape.lineTo(0, 0.22);
+      shape.quadraticCurveTo(0.36, 0.05, 0.34, 0.10);
+      shape.lineTo(0.32, 0.24);
+      shape.quadraticCurveTo(0.28, 0.32, 0.18, 0.33);
+      shape.quadraticCurveTo(0.10, 0.33, 0.06, 0.30);
+      shape.quadraticCurveTo(0.02, 0.26, 0, 0.20);
       shape.closePath();
 
       const geo = new THREE.ExtrudeGeometry(shape, {
-        depth: 0.022,
+        depth: 0.020,
         bevelEnabled: true,
         bevelThickness: 0.003,
         bevelSize: 0.003,
-        bevelSegments: 2,
+        bevelSegments: 3,
       });
       geo.center();
       const mesh = new THREE.Mesh(geo, mat());
@@ -235,7 +376,7 @@ export const aerodynamicsParts = [
     build({ addEdgeLines }) {
       const group = new THREE.Group();
 
-      // WIDER, THICKER rear wing — dramatic presence
+      // Wide, thick rear wing
       const geo = buildWingElement(0.26, 0.92, 0.16, 0.07);
       const mesh = new THREE.Mesh(geo, mat());
       mesh.castShadow = true;
@@ -243,18 +384,28 @@ export const aerodynamicsParts = [
       addEdgeLines(mesh);
       group.add(mesh);
 
-      // Swan-neck mounts — two pylons connecting wing to body
-      const mountH = 0.32;
-      const mountGeoL = new THREE.BoxGeometry(0.025, mountH, 0.04);
+      // Swan-neck mounts — curved pylons from top
+      const mountH = 0.34;
+      const mountCurveL = new THREE.CatmullRomCurve3([
+        new THREE.Vector3(-0.18, 0, 0),
+        new THREE.Vector3(-0.17, -mountH * 0.3, 0.01),
+        new THREE.Vector3(-0.16, -mountH * 0.7, 0.015),
+        new THREE.Vector3(-0.15, -mountH, 0.02),
+      ]);
+      const mountGeoL = new THREE.TubeGeometry(mountCurveL, 12, 0.014, 8, false);
       const mountL = new THREE.Mesh(mountGeoL, mat({ opacity: 0.94 }));
-      mountL.position.set(-0.18, -mountH / 2, 0);
       mountL.castShadow = true;
       addEdgeLines(mountL);
       group.add(mountL);
 
-      const mountGeoR = new THREE.BoxGeometry(0.025, mountH, 0.04);
+      const mountCurveR = new THREE.CatmullRomCurve3([
+        new THREE.Vector3(0.18, 0, 0),
+        new THREE.Vector3(0.17, -mountH * 0.3, 0.01),
+        new THREE.Vector3(0.16, -mountH * 0.7, 0.015),
+        new THREE.Vector3(0.15, -mountH, 0.02),
+      ]);
+      const mountGeoR = new THREE.TubeGeometry(mountCurveR, 12, 0.014, 8, false);
       const mountR = new THREE.Mesh(mountGeoR, mat({ opacity: 0.94 }));
-      mountR.position.set(0.18, -mountH / 2, 0);
       mountR.castShadow = true;
       addEdgeLines(mountR);
       group.add(mountR);
@@ -273,7 +424,6 @@ export const aerodynamicsParts = [
     assembledRotation: [0, -Math.PI / 2, 0],
     explosionDirection: [0, 1, 0.5],
     build({ addEdgeLines }) {
-      // Thicker DRS flap — clearly visible above main plane
       const geo = buildWingElement(0.14, 0.88, 0.12, 0.04);
       const mesh = new THREE.Mesh(geo, mat());
       mesh.castShadow = true;
@@ -295,23 +445,24 @@ export const aerodynamicsParts = [
     build({ addEdgeLines }) {
       const group = new THREE.Group();
 
-      // TALL endplate — 0.50 height, solid vertical wall defining rear silhouette
+      // Tall endplate with swept leading edge
       const shape = new THREE.Shape();
       shape.moveTo(0, 0);
       shape.lineTo(0.36, 0);
-      shape.lineTo(0.36, 0.12);
-      shape.lineTo(0.34, 0.40);
-      shape.quadraticCurveTo(0.30, 0.50, 0.18, 0.50);
-      shape.lineTo(0.08, 0.48);
-      shape.lineTo(0, 0.42);
+      shape.quadraticCurveTo(0.37, 0.06, 0.36, 0.12);
+      shape.lineTo(0.34, 0.36);
+      shape.quadraticCurveTo(0.32, 0.46, 0.24, 0.50);
+      shape.quadraticCurveTo(0.16, 0.52, 0.10, 0.50);
+      shape.quadraticCurveTo(0.04, 0.46, 0.02, 0.40);
+      shape.lineTo(0, 0.36);
       shape.closePath();
 
       const geo = new THREE.ExtrudeGeometry(shape, {
-        depth: 0.022,
+        depth: 0.020,
         bevelEnabled: true,
         bevelThickness: 0.004,
         bevelSize: 0.004,
-        bevelSegments: 2,
+        bevelSegments: 3,
       });
       geo.center();
       const mesh = new THREE.Mesh(geo, mat());
@@ -320,9 +471,14 @@ export const aerodynamicsParts = [
       addEdgeLines(mesh);
       group.add(mesh);
 
-      // Rear light strip — small accent at the bottom
-      const lightGeo = new THREE.BoxGeometry(0.15, 0.025, 0.018);
-      const lightMesh = new THREE.Mesh(lightGeo, mat({ color: '#cc2222', emissive: '#cc2222', emissiveIntensity: 0.3, opacity: 0.98 }));
+      // Rear light strip
+      const lightGeo = new THREE.BoxGeometry(0.14, 0.025, 0.016);
+      const lightMesh = new THREE.Mesh(lightGeo, mat({
+        color: '#cc2222',
+        emissive: '#cc2222',
+        emissiveIntensity: 0.3,
+        opacity: 0.98,
+      }));
       lightMesh.position.set(0.05, -0.18, 0);
       group.add(lightMesh);
 
@@ -342,23 +498,23 @@ export const aerodynamicsParts = [
     build({ addEdgeLines }) {
       const group = new THREE.Group();
 
-      // Mirror of left — TALL endplate
       const shape = new THREE.Shape();
       shape.moveTo(0, 0);
       shape.lineTo(0.36, 0);
-      shape.lineTo(0.36, 0.12);
-      shape.lineTo(0.34, 0.40);
-      shape.quadraticCurveTo(0.30, 0.50, 0.18, 0.50);
-      shape.lineTo(0.08, 0.48);
-      shape.lineTo(0, 0.42);
+      shape.quadraticCurveTo(0.37, 0.06, 0.36, 0.12);
+      shape.lineTo(0.34, 0.36);
+      shape.quadraticCurveTo(0.32, 0.46, 0.24, 0.50);
+      shape.quadraticCurveTo(0.16, 0.52, 0.10, 0.50);
+      shape.quadraticCurveTo(0.04, 0.46, 0.02, 0.40);
+      shape.lineTo(0, 0.36);
       shape.closePath();
 
       const geo = new THREE.ExtrudeGeometry(shape, {
-        depth: 0.022,
+        depth: 0.020,
         bevelEnabled: true,
         bevelThickness: 0.004,
         bevelSize: 0.004,
-        bevelSegments: 2,
+        bevelSegments: 3,
       });
       geo.center();
       const mesh = new THREE.Mesh(geo, mat());
@@ -367,9 +523,13 @@ export const aerodynamicsParts = [
       addEdgeLines(mesh);
       group.add(mesh);
 
-      // Rear light strip
-      const lightGeo = new THREE.BoxGeometry(0.15, 0.025, 0.018);
-      const lightMesh = new THREE.Mesh(lightGeo, mat({ color: '#cc2222', emissive: '#cc2222', emissiveIntensity: 0.3, opacity: 0.98 }));
+      const lightGeo = new THREE.BoxGeometry(0.14, 0.025, 0.016);
+      const lightMesh = new THREE.Mesh(lightGeo, mat({
+        color: '#cc2222',
+        emissive: '#cc2222',
+        emissiveIntensity: 0.3,
+        opacity: 0.98,
+      }));
       lightMesh.position.set(0.05, -0.18, 0);
       group.add(lightMesh);
 
@@ -387,72 +547,7 @@ export const aerodynamicsParts = [
     assembledRotation: [0, 0, 0],
     explosionDirection: [-1, 0.2, 0],
     build({ addEdgeLines }) {
-      const group = new THREE.Group();
-
-      // === BIG SOLID SIDEPOD — chunky 3D body ===
-      // Main body: thick box with shaped vertices for coke-bottle taper
-      const spW = 0.36, spH = 0.36, spL = 1.6;
-      const spGeo = new THREE.BoxGeometry(spW, spH, spL, 2, 2, 6);
-      const spos = spGeo.attributes.position;
-
-      for (let i = 0; i < spos.count; i++) {
-        const x = spos.getX(i);
-        const y = spos.getY(i);
-        const z = spos.getZ(i);
-
-        let newX = x;
-        let newY = y;
-
-        // Coke-bottle taper at the rear
-        if (z > 0.2) {
-          const rearFactor = 1.0 - (z - 0.2) * 0.35;
-          newX = x * Math.max(rearFactor, 0.35);
-          newY = y * Math.max(rearFactor, 0.5);
-        }
-
-        // Taper at the front for inlet shape
-        if (z < -0.5) {
-          const frontFactor = 1.0 - (-0.5 - z) * 0.2;
-          newX = x * Math.max(frontFactor, 0.7);
-        }
-
-        // Round the top edges
-        if (y > 0.1) {
-          const topRound = 1.0 - Math.pow((y - 0.1) / (spH / 2 - 0.1), 2) * 0.15;
-          newX *= topRound;
-        }
-
-        spos.setX(i, newX);
-        spos.setY(i, newY);
-      }
-      spos.needsUpdate = true;
-      spGeo.computeVertexNormals();
-
-      const spBody = new THREE.Mesh(spGeo, mat());
-      spBody.castShadow = true;
-      spBody.receiveShadow = true;
-      addEdgeLines(spBody);
-      group.add(spBody);
-
-      // Inlet opening — dark recessed area at front face
-      const inletGeo = new THREE.BoxGeometry(spW * 0.7, spH * 0.65, 0.06);
-      const inletMesh = new THREE.Mesh(inletGeo, mat({
-        color: '#1a1a1a',
-        opacity: 0.95,
-        metalness: 0.05,
-        roughness: 0.8,
-      }));
-      inletMesh.position.set(0, 0.02, -spL / 2 - 0.01);
-      group.add(inletMesh);
-
-      // Top fairing — smooth continuation to body
-      const fairGeo = new THREE.BoxGeometry(spW * 0.6, 0.04, spL * 0.5);
-      const fair = new THREE.Mesh(fairGeo, mat({ opacity: 0.93 }));
-      fair.position.set(0, spH / 2 + 0.01, -0.15);
-      fair.castShadow = true;
-      group.add(fair);
-
-      return group;
+      return buildSidepod({ addEdgeLines });
     },
   },
 
@@ -466,71 +561,7 @@ export const aerodynamicsParts = [
     assembledRotation: [0, Math.PI, 0],
     explosionDirection: [1, 0.2, 0],
     build({ addEdgeLines }) {
-      const group = new THREE.Group();
-
-      // === Mirror of left sidepod — big chunky body ===
-      const spW = 0.36, spH = 0.36, spL = 1.6;
-      const spGeo = new THREE.BoxGeometry(spW, spH, spL, 2, 2, 6);
-      const spos = spGeo.attributes.position;
-
-      for (let i = 0; i < spos.count; i++) {
-        const x = spos.getX(i);
-        const y = spos.getY(i);
-        const z = spos.getZ(i);
-
-        let newX = x;
-        let newY = y;
-
-        // Coke-bottle taper at rear
-        if (z > 0.2) {
-          const rearFactor = 1.0 - (z - 0.2) * 0.35;
-          newX = x * Math.max(rearFactor, 0.35);
-          newY = y * Math.max(rearFactor, 0.5);
-        }
-
-        // Taper at front
-        if (z < -0.5) {
-          const frontFactor = 1.0 - (-0.5 - z) * 0.2;
-          newX = x * Math.max(frontFactor, 0.7);
-        }
-
-        // Round top edges
-        if (y > 0.1) {
-          const topRound = 1.0 - Math.pow((y - 0.1) / (spH / 2 - 0.1), 2) * 0.15;
-          newX *= topRound;
-        }
-
-        spos.setX(i, newX);
-        spos.setY(i, newY);
-      }
-      spos.needsUpdate = true;
-      spGeo.computeVertexNormals();
-
-      const spBody = new THREE.Mesh(spGeo, mat());
-      spBody.castShadow = true;
-      spBody.receiveShadow = true;
-      addEdgeLines(spBody);
-      group.add(spBody);
-
-      // Inlet opening
-      const inletGeo = new THREE.BoxGeometry(spW * 0.7, spH * 0.65, 0.06);
-      const inletMesh = new THREE.Mesh(inletGeo, mat({
-        color: '#1a1a1a',
-        opacity: 0.95,
-        metalness: 0.05,
-        roughness: 0.8,
-      }));
-      inletMesh.position.set(0, 0.02, -spL / 2 - 0.01);
-      group.add(inletMesh);
-
-      // Top fairing
-      const fairGeo = new THREE.BoxGeometry(spW * 0.6, 0.04, spL * 0.5);
-      const fair = new THREE.Mesh(fairGeo, mat({ opacity: 0.93 }));
-      fair.position.set(0, spH / 2 + 0.01, -0.15);
-      fair.castShadow = true;
-      group.add(fair);
-
-      return group;
+      return buildSidepod({ addEdgeLines });
     },
   },
 
@@ -546,7 +577,6 @@ export const aerodynamicsParts = [
     build({ addEdgeLines }) {
       const group = new THREE.Group();
 
-      // Thicker beam wing
       const geo = buildWingElement(0.12, 0.68, 0.12, 0.05);
       const mesh = new THREE.Mesh(geo, mat());
       mesh.castShadow = true;
@@ -554,14 +584,14 @@ export const aerodynamicsParts = [
       addEdgeLines(mesh);
       group.add(mesh);
 
-      // Mounting pylons to the crash structure
-      const pylonGeoL = new THREE.BoxGeometry(0.02, 0.08, 0.03);
+      // Mounting pylons
+      const pylonGeoL = new THREE.BoxGeometry(0.018, 0.08, 0.028);
       const pylonL = new THREE.Mesh(pylonGeoL, mat({ opacity: 0.93 }));
       pylonL.position.set(-0.15, -0.05, 0);
       pylonL.castShadow = true;
       group.add(pylonL);
 
-      const pylonGeoR = new THREE.BoxGeometry(0.02, 0.08, 0.03);
+      const pylonGeoR = new THREE.BoxGeometry(0.018, 0.08, 0.028);
       const pylonR = new THREE.Mesh(pylonGeoR, mat({ opacity: 0.93 }));
       pylonR.position.set(0.15, -0.05, 0);
       pylonR.castShadow = true;

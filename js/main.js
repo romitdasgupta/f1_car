@@ -10,6 +10,7 @@ import { COLORS } from './data/colors.js';
 import { CONFIG } from './data/config.js';
 
 // ---- Part definitions ----------------------------------------
+import { bodyworkParts } from './parts/bodywork.js';
 import { chassisParts } from './parts/chassis.js';
 import { powerUnitParts } from './parts/powerUnit.js';
 import { drivetrainParts } from './parts/drivetrain.js';
@@ -168,6 +169,7 @@ scene.add(gridMesh);
 
 // ---- Build the F1 car -------------------------------------
 const allPartDefs = [
+  ...bodyworkParts,
   ...chassisParts, ...powerUnitParts, ...drivetrainParts,
   ...aerodynamicsParts, ...suspensionParts, ...wheelsAndBrakesParts,
   ...steeringAndDriverParts
@@ -215,9 +217,13 @@ if (loadingOverlay) {
 }
 
 // ---- Auto-explode on load -----------------------------------
-// Show the assembled car briefly, then cascade-explode to reveal internals
-setTimeout(() => {
-  explosionManager.explodeAll();
+// Show the assembled car briefly, then cascade-explode to reveal internals,
+// hold for 4 seconds, then reassemble all groups.
+setTimeout(async () => {
+  await explosionManager.explodeAll();
+  setTimeout(() => {
+    explosionManager.resetAll();
+  }, 4000);
 }, 2500);
 
 // ---- Animation loop ---------------------------------------

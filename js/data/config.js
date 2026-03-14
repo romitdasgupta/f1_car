@@ -7,13 +7,14 @@ export const CONFIG = {
   // Explosion distances per group (world units outward from center)
   explosion: {
     distances: {
+      bodywork:        3.5,
       powerUnit:       2.5,
       drivetrain:      2.0,
       chassis:         1.5,
       aerodynamics:    3.0,
       suspension:      2.2,
       wheelsAndBrakes: 2.8,
-      steering:        1.8,
+      steering:        3.2,
     },
   },
 
@@ -34,6 +35,11 @@ export const CONFIG = {
 
   // Group metadata — display names and short descriptions
   groups: {
+    bodywork: {
+      name: 'Bodywork',
+      description:
+        'Outer carbon-fibre body panels and aerodynamic shell — the visible livery of the car that covers all internal systems.',
+    },
     powerUnit: {
       name: 'Power Unit',
       description:
