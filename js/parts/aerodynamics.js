@@ -17,7 +17,7 @@ function mat(opts = {}) {
     roughness: 0.4,
     clearcoat: 0.3,
     transparent: true,
-    opacity: 0.85,
+    opacity: 0.95,
     ...opts,
   });
 }
@@ -201,20 +201,20 @@ export const aerodynamicsParts = [
     name: 'Rear Wing Endplate (Left)',
     group: GROUP,
     description: 'Left rear wing endplate — seals wing tip and incorporates rear light.',
-    assembledPosition: [-0.44, 0.6, 2.45],
+    assembledPosition: [-0.44, 0.52, 2.45],
     assembledRotation: [0, 0, 0],
     explosionDirection: [-1, 0.3, 0.3],
     build({ addEdgeLines }) {
-      // Tall endplate
+      // Tall endplate with pylon
       const shape = new THREE.Shape();
       shape.moveTo(0, 0);
-      shape.lineTo(0.28, 0);
-      shape.lineTo(0.28, 0.3);
-      shape.quadraticCurveTo(0.22, 0.38, 0.1, 0.38);
-      shape.lineTo(0, 0.28);
+      shape.lineTo(0.3, 0);
+      shape.lineTo(0.3, 0.4);
+      shape.quadraticCurveTo(0.24, 0.48, 0.12, 0.48);
+      shape.lineTo(0, 0.35);
       shape.closePath();
 
-      const geo = new THREE.ExtrudeGeometry(shape, { depth: 0.012, bevelEnabled: false });
+      const geo = new THREE.ExtrudeGeometry(shape, { depth: 0.015, bevelEnabled: false });
       geo.center();
       const mesh = new THREE.Mesh(geo, mat());
       mesh.castShadow = true;
@@ -230,19 +230,19 @@ export const aerodynamicsParts = [
     name: 'Rear Wing Endplate (Right)',
     group: GROUP,
     description: 'Right rear wing endplate — seals wing tip and incorporates rear light.',
-    assembledPosition: [0.44, 0.6, 2.45],
+    assembledPosition: [0.44, 0.52, 2.45],
     assembledRotation: [0, Math.PI, 0],
     explosionDirection: [1, 0.3, 0.3],
     build({ addEdgeLines }) {
       const shape = new THREE.Shape();
       shape.moveTo(0, 0);
-      shape.lineTo(0.28, 0);
-      shape.lineTo(0.28, 0.3);
-      shape.quadraticCurveTo(0.22, 0.38, 0.1, 0.38);
-      shape.lineTo(0, 0.28);
+      shape.lineTo(0.3, 0);
+      shape.lineTo(0.3, 0.4);
+      shape.quadraticCurveTo(0.24, 0.48, 0.12, 0.48);
+      shape.lineTo(0, 0.35);
       shape.closePath();
 
-      const geo = new THREE.ExtrudeGeometry(shape, { depth: 0.012, bevelEnabled: false });
+      const geo = new THREE.ExtrudeGeometry(shape, { depth: 0.015, bevelEnabled: false });
       geo.center();
       const mesh = new THREE.Mesh(geo, mat());
       mesh.castShadow = true;
@@ -258,32 +258,31 @@ export const aerodynamicsParts = [
     name: 'Sidepod (Left)',
     group: GROUP,
     description: 'Left sidepod body panel — channels cooling air to the radiator and houses internal components.',
-    assembledPosition: [-0.45, 0.2, 0.6],
+    assembledPosition: [-0.45, 0.18, 0.4],
     assembledRotation: [0, 0, 0],
     explosionDirection: [-1, 0.2, 0],
     build({ addEdgeLines }) {
       const group = new THREE.Group();
 
-      // Main sidepod body — sculpted inlet shape
-      // Side profile as shape, extruded sideways
+      // Main sidepod body — sculpted inlet shape, taller and longer
       const shape = new THREE.Shape();
-      // Inlet opening at front, tapering to narrow undercut at rear
-      shape.moveTo(0, 0.04);        // front bottom
-      shape.lineTo(0, 0.28);        // front top (inlet opening top)
-      shape.quadraticCurveTo(0.05, 0.3, 0.15, 0.28); // inlet curve
-      shape.lineTo(0.8, 0.22);      // top line tapering rearward
-      shape.quadraticCurveTo(1.2, 0.18, 1.5, 0.12);  // rear taper
-      shape.lineTo(1.5, 0.04);      // rear bottom
-      shape.quadraticCurveTo(1.2, 0.01, 0.8, 0.01);  // undercut
-      shape.lineTo(0.3, 0.02);
-      shape.lineTo(0, 0.04);
+      shape.moveTo(0, 0.02);        // front bottom
+      shape.lineTo(0, 0.38);        // front top (tall inlet opening)
+      shape.quadraticCurveTo(0.08, 0.42, 0.2, 0.38); // inlet curve
+      shape.lineTo(0.6, 0.35);      // top line
+      shape.lineTo(1.0, 0.3);
+      shape.quadraticCurveTo(1.4, 0.24, 1.7, 0.15);  // rear taper (coke-bottle)
+      shape.lineTo(1.7, 0.04);      // rear bottom
+      shape.quadraticCurveTo(1.4, 0.0, 1.0, 0.0);    // undercut
+      shape.lineTo(0.4, 0.01);
+      shape.lineTo(0, 0.02);
 
       const extrudeSettings = {
-        depth: 0.28,
+        depth: 0.35,
         bevelEnabled: true,
-        bevelThickness: 0.01,
-        bevelSize: 0.01,
-        bevelSegments: 2,
+        bevelThickness: 0.015,
+        bevelSize: 0.015,
+        bevelSegments: 3,
       };
       const geo = new THREE.ExtrudeGeometry(shape, extrudeSettings);
       geo.center();
@@ -304,30 +303,31 @@ export const aerodynamicsParts = [
     name: 'Sidepod (Right)',
     group: GROUP,
     description: 'Right sidepod body panel — channels cooling air to the radiator and houses internal components.',
-    assembledPosition: [0.45, 0.2, 0.6],
+    assembledPosition: [0.45, 0.18, 0.4],
     assembledRotation: [0, Math.PI, 0],
     explosionDirection: [1, 0.2, 0],
     build({ addEdgeLines }) {
       const group = new THREE.Group();
 
-      // Mirror of left sidepod
+      // Mirror of left sidepod — taller and longer
       const shape = new THREE.Shape();
-      shape.moveTo(0, 0.04);
-      shape.lineTo(0, 0.28);
-      shape.quadraticCurveTo(0.05, 0.3, 0.15, 0.28);
-      shape.lineTo(0.8, 0.22);
-      shape.quadraticCurveTo(1.2, 0.18, 1.5, 0.12);
-      shape.lineTo(1.5, 0.04);
-      shape.quadraticCurveTo(1.2, 0.01, 0.8, 0.01);
-      shape.lineTo(0.3, 0.02);
-      shape.lineTo(0, 0.04);
+      shape.moveTo(0, 0.02);
+      shape.lineTo(0, 0.38);
+      shape.quadraticCurveTo(0.08, 0.42, 0.2, 0.38);
+      shape.lineTo(0.6, 0.35);
+      shape.lineTo(1.0, 0.3);
+      shape.quadraticCurveTo(1.4, 0.24, 1.7, 0.15);
+      shape.lineTo(1.7, 0.04);
+      shape.quadraticCurveTo(1.4, 0.0, 1.0, 0.0);
+      shape.lineTo(0.4, 0.01);
+      shape.lineTo(0, 0.02);
 
       const extrudeSettings = {
-        depth: 0.28,
+        depth: 0.35,
         bevelEnabled: true,
-        bevelThickness: 0.01,
-        bevelSize: 0.01,
-        bevelSegments: 2,
+        bevelThickness: 0.015,
+        bevelSize: 0.015,
+        bevelSegments: 3,
       };
       const geo = new THREE.ExtrudeGeometry(shape, extrudeSettings);
       geo.center();

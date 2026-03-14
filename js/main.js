@@ -214,6 +214,12 @@ if (loadingOverlay) {
   });
 }
 
+// ---- Auto-explode on load -----------------------------------
+// Show the assembled car briefly, then cascade-explode to reveal internals
+setTimeout(() => {
+  explosionManager.explodeAll();
+}, 2500);
+
 // ---- Animation loop ---------------------------------------
 function animate(time) {
   requestAnimationFrame(animate);

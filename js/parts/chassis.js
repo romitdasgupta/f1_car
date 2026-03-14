@@ -17,7 +17,7 @@ function mat(opts = {}) {
     roughness: 0.4,
     clearcoat: 0.3,
     transparent: true,
-    opacity: 0.85,
+    opacity: 0.95,
     ...opts,
   });
 }
@@ -81,7 +81,7 @@ export const chassisParts = [
         bevelSegments: 2,
       });
       coverGeo.center();
-      const cover = new THREE.Mesh(coverGeo, mat({ opacity: 0.7 }));
+      const cover = new THREE.Mesh(coverGeo, mat({ opacity: 0.92 }));
       cover.position.set(0, 0.16, 0.65);
       cover.castShadow = true;
       cover.receiveShadow = true;

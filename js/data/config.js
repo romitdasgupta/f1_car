@@ -19,16 +19,16 @@ export const CONFIG = {
 
   // Animation timing (milliseconds)
   animation: {
-    explodeDuration:    800,
-    reassembleDuration: 600,
-    staggerDelay:       40,
-    cascadeDelay:       200,
+    explodeDuration:    1000,
+    reassembleDuration: 800,
+    staggerDelay:       50,
+    cascadeDelay:       350,
   },
 
   // Camera defaults
   camera: {
-    position: [8, 5, 8],
-    target:   [0, 0.5, 0],
+    position: [6, 4, -6],
+    target:   [0, 0.3, 0],
     fov:      45,
   },
 
