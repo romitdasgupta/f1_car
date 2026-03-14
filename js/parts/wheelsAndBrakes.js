@@ -21,19 +21,22 @@ function mat(opts = {}) {
   });
 }
 
-// Corner positions — [X, Y, Z]
+// Corner positions — correct F1 proportions
+// Front track width: ~1.8 (wheels at ±0.9)
+// Rear track width: ~1.7 (wheels at ±0.85)
+// Front axle at Z = -1.5, rear axle at Z = +2.1
 const CORNERS = {
-  FL: { x: -0.85, z: -2.0, label: 'Front-Left' },
-  FR: { x:  0.85, z: -2.0, label: 'Front-Right' },
-  RL: { x: -0.85, z:  2.3, label: 'Rear-Left' },
-  RR: { x:  0.85, z:  2.3, label: 'Rear-Right' },
+  FL: { x: -0.9, z: -1.5, label: 'Front-Left' },
+  FR: { x:  0.9, z: -1.5, label: 'Front-Right' },
+  RL: { x: -0.85, z:  2.1, label: 'Rear-Left' },
+  RR: { x:  0.85, z:  2.1, label: 'Rear-Right' },
 };
 
-// Tire dimensions
+// Tire dimensions — 18" wheels
 const FRONT_TIRE_R = 0.33;
 const REAR_TIRE_R  = 0.33;
-const FRONT_TIRE_W = 0.26;
-const REAR_TIRE_W  = 0.32;
+const FRONT_TIRE_W = 0.305;
+const REAR_TIRE_W  = 0.38;
 
 /**
  * Builds a tire (torus) for the given corner.
@@ -125,7 +128,7 @@ function buildBrake(cornerKey) {
   addEdgeLines(disc);
   group.add(disc);
 
-  // Ventilation holes in disc (decorative small cylinders subtracted visually)
+  // Ventilation holes in disc
   const holeCount = 12;
   const holeR = 0.008;
   for (let i = 0; i < holeCount; i++) {
