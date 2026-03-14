@@ -9,6 +9,25 @@ import TWEEN from '@tweenjs/tween.js';
 import { COLORS } from './data/colors.js';
 import { CONFIG } from './data/config.js';
 
+// ---- Part definitions ----------------------------------------
+import { chassisParts } from './parts/chassis.js';
+import { powerUnitParts } from './parts/powerUnit.js';
+import { drivetrainParts } from './parts/drivetrain.js';
+import { aerodynamicsParts } from './parts/aerodynamics.js';
+import { suspensionParts } from './parts/suspension.js';
+import { wheelsAndBrakesParts } from './parts/wheelsAndBrakes.js';
+import { steeringAndDriverParts } from './parts/steeringAndDriver.js';
+
+// ---- Geometry factories --------------------------------------
+import { createAirfoilShape, createMonocoqueShape, createSeatShape } from './geometry/shapes.js';
+import { createWishbone, createWheelAssembly, createTurboSection, addEdgeLines } from './geometry/factories.js';
+
+// ---- System managers -----------------------------------------
+import * as explosionManager from './systems/explosionManager.js';
+import * as interactionManager from './systems/interactionManager.js';
+import * as labelManager from './systems/labelManager.js';
+import * as animationManager from './systems/animationManager.js';
+
 // ---- Scene ------------------------------------------------
 const scene = new THREE.Scene();
 scene.background = new THREE.Color(COLORS.background);
@@ -147,13 +166,62 @@ gridMesh.position.y = -0.01;         // just below y = 0
 gridMesh.receiveShadow = true;
 scene.add(gridMesh);
 
+// ---- Build the F1 car -------------------------------------
+const allPartDefs = [
+  ...chassisParts, ...powerUnitParts, ...drivetrainParts,
+  ...aerodynamicsParts, ...suspensionParts, ...wheelsAndBrakesParts,
+  ...steeringAndDriverParts
+];
+
+const factories = {
+  createAirfoilShape, createMonocoqueShape, createSeatShape,
+  createWishbone, createWheelAssembly, createTurboSection, addEdgeLines
+};
+
+const builtParts = []; // array of { partDef, mesh }
+
+for (const partDef of allPartDefs) {
+  const mesh = partDef.build(factories);
+  mesh.position.set(...partDef.assembledPosition);
+  if (partDef.assembledRotation) {
+    mesh.rotation.set(...partDef.assembledRotation);
+  }
+  mesh.userData.partDef = partDef;
+  scene.add(mesh);
+  builtParts.push({ partDef, mesh });
+}
+
+// ---- Register with systems ----------------------------------
+
+// Register each part with explosion manager
+for (const { partDef, mesh } of builtParts) {
+  explosionManager.registerPart(partDef, mesh);
+}
+
+// Initialize interaction manager
+interactionManager.init(scene, camera, renderer, controls);
+interactionManager.registerMeshes(builtParts);
+
+// Create labels
+labelManager.createLabels(builtParts, scene);
+
+// ---- Hide loading overlay -----------------------------------
+const loadingOverlay = document.getElementById('loading-overlay');
+if (loadingOverlay) {
+  loadingOverlay.classList.add('fade-out');
+  loadingOverlay.addEventListener('transitionend', () => {
+    loadingOverlay.remove();
+  });
+}
+
 // ---- Animation loop ---------------------------------------
 function animate(time) {
   requestAnimationFrame(animate);
-  TWEEN.update(time);
+  animationManager.update(time);
   controls.update();
   renderer.render(scene, camera);
   css2DRenderer.render(scene, camera);
+  labelManager.updateLabels(camera);
 }
 animate(0);
 
